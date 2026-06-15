@@ -572,14 +572,25 @@ class ForzaBot:
                             self.log("模擬滑鼠點擊「乘駕車輛」按鈕...")
                             direct_input.mouse_click(click_x, click_y, click_duration=0.15, settle_delay=0.15)
                             
-                            self.log("正在進入車庫並更換乘駕車輛，等待 8 秒過場動畫...")
-                            time.sleep(8.0)
+                            # 等待 1.0 秒以利 UI 狀態更新
+                            time.sleep(1.0)
                             
-                            self.log("過場動畫結束，發送 'Esc' 鍵進入選單...")
-                            direct_input.press_and_release(direct_input.KEY_ESC, duration=0.5)
-                            
-                            self.update_state("MASTERY_ENTER_UPGRADES")
-                            time.sleep(1.5)
+                            # 檢查是否已在或仍在選單中（無動畫）
+                            if self.find_template_on_screen("upgrades_tuning.png"):
+                                self.log("偵測到【升級套件與調校】已在畫面上，跳過過場等待與 Esc 發送。")
+                                self.update_state("MASTERY_ENTER_UPGRADES")
+                            elif self.find_template_on_screen("revuelto.png"):
+                                self.log("仍處於車輛選擇列表（未觸發換車動畫），發送 'Esc' 返回選單...")
+                                direct_input.press_and_release(direct_input.KEY_ESC, duration=0.5)
+                                self.update_state("MASTERY_ENTER_UPGRADES")
+                                time.sleep(1.5)
+                            else:
+                                self.log("已觸發換車過場動畫，等待 8 秒過場動畫...")
+                                time.sleep(8.0)
+                                self.log("過場動畫結束，發送 'Esc' 鍵進入選單...")
+                                direct_input.press_and_release(direct_input.KEY_ESC, duration=0.5)
+                                self.update_state("MASTERY_ENTER_UPGRADES")
+                                time.sleep(1.5)
                         else:
                             if self.find_template_on_screen("upgrades_tuning.png"):
                                 self.log("[INFO] [自動狀態修正]：已越過乘駕車輛，直接進入升級選單")
