@@ -572,9 +572,14 @@ class ForzaBot:
                             self.log("模擬滑鼠點擊「乘駕車輛」按鈕...")
                             direct_input.mouse_click(click_x, click_y, click_duration=0.15, settle_delay=0.15)
                             
-                            self.update_state("MASTERY_ENTER_UPGRADES")
-                            self.log("正在進入車庫並更換乘駕車輛，等待 8 秒過場...")
+                            self.log("正在進入車庫並更換乘駕車輛，等待 8 秒過場動畫...")
                             time.sleep(8.0)
+                            
+                            self.log("過場動畫結束，發送 'Esc' 鍵進入選單...")
+                            direct_input.press_and_release(direct_input.KEY_ESC, duration=0.5)
+                            
+                            self.update_state("MASTERY_ENTER_UPGRADES")
+                            time.sleep(1.5)
                         else:
                             if self.find_template_on_screen("upgrades_tuning.png"):
                                 self.log("[INFO] [自動狀態修正]：已越過乘駕車輛，直接進入升級選單")
