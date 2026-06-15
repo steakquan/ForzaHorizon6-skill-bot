@@ -50,6 +50,7 @@ class ForzaBot:
         self.mastery_grid_topleft = None
         self.mastery_grid_bottomright = None
         self.mastery_car_index = 0
+        self.upgrades_enter_start_time = 0
         
         # Ensure templates directory exists
         if not os.path.exists(self.templates_dir):
@@ -137,6 +138,8 @@ class ForzaBot:
     def update_state(self, new_state):
         self.state = new_state
         self.log(f"狀態轉移至: {new_state}")
+        if new_state == "MASTERY_ENTER_UPGRADES":
+            self.upgrades_enter_start_time = time.time()
         if self.state_callback:
             self.state_callback(new_state)
 
@@ -612,7 +615,64 @@ class ForzaBot:
                                 self.log("[INFO] [自動狀態修正]：已越過升級套件，直接進入熟練度選單")
                                 self.update_state("MASTERY_ENTER_MASTERY")
                             else:
-                                time.sleep(self.check_interval)
+                                elapsed = time.time() - self.upgrades_enter_start_time
+                                if elapsed > 5.0 and HAS_WINSDK:
+                                    self.log(f"[RECOVERY] 進入【升級套件與調校】超時 ({elapsed:.1f} 秒)，執行卡死恢復程式...")
+                                    
+                                    # 1. 按下 esc 打開玩家介面
+                                    self.log("[RECOVERY] 步驟 1/5：發送 'Esc' 鍵打開選單...")
+                                    direct_input.press_and_release(direct_input.KEY_ESC, duration=0.5)
+                                    time.sleep(2.0)
+                                    
+                                    # 2. 滑鼠點擊「我的 HORIZON」按鈕
+                                    self.log("[RECOVERY] 步驟 2/5：尋找『我的 HORIZON』分頁並點擊...")
+                                    match_hz = self.find_text_by_ocr_sync(["我的 HORIZON", "我的HORIZON", "MY HORIZON"])
+                                    if match_hz:
+                                        x_hz, y_hz, conf_hz = match_hz
+                                        self.log(f"[RECOVERY] 尋找到『我的 HORIZON』(座標: {x_hz}, {y_hz})，進行平滑點擊...")
+                                        direct_input.smooth_move_mouse(x_hz, y_hz, duration=0.3)
+                                        time.sleep(0.5)
+                                        direct_input.mouse_click(x_hz, y_hz, click_duration=0.15, settle_delay=0.15)
+                                        time.sleep(2.0)
+                                    else:
+                                        self.log("[RECOVERY] 警告：未找到『我的 HORIZON』分頁。")
+                                        
+                                    # 3. 按下「返回住所」的按鈕
+                                    self.log("[RECOVERY] 步驟 3/5：尋找『返回住所』按鈕並點擊...")
+                                    match_home = self.find_text_by_ocr_sync(["返回住所", "返回", "住所", "GO TO HOME"])
+                                    if match_home:
+                                        x_hm, y_hm, conf_hm = match_home
+                                        self.log(f"[RECOVERY] 尋找到『返回住所』(座標: {x_hm}, {y_hm})，進行平滑點擊...")
+                                        direct_input.smooth_move_mouse(x_hm, y_hm, duration=0.3)
+                                        time.sleep(0.5)
+                                        direct_input.mouse_click(x_hm, y_hm, click_duration=0.15, settle_delay=0.15)
+                                        time.sleep(2.0)
+                                    else:
+                                        self.log("[RECOVERY] 警告：未找到『返回住所』按鈕。")
+                                        
+                                    # 4. 遊戲詢問是否快速移動到房屋，鍵盤按下 enter 確認
+                                    self.log("[RECOVERY] 步驟 4/5：發送 'Enter' 鍵確認快速移動到房屋...")
+                                    direct_input.press_and_release(direct_input.KEY_ENTER, duration=0.5)
+                                    self.log("[RECOVERY] 正在傳送至房屋，等待 9 秒載入...")
+                                    time.sleep(9.0)
+                                    
+                                    # 5. 到了房屋後點擊「車輛」按鈕
+                                    self.log("[RECOVERY] 步驟 5/5：尋找頂部『車輛』分頁並點擊...")
+                                    match_cars = self.find_text_by_ocr_sync(["車輛", "车辆", "CARS"])
+                                    if match_cars:
+                                        x_cs, y_cs, conf_cs = match_cars
+                                        self.log(f"[RECOVERY] 尋找到『車輛』分頁 (座標: {x_cs}, {y_cs})，進行平滑點擊...")
+                                        direct_input.smooth_move_mouse(x_cs, y_cs, duration=0.3)
+                                        time.sleep(0.5)
+                                        direct_input.mouse_click(x_cs, y_cs, click_duration=0.15, settle_delay=0.15)
+                                        time.sleep(2.0)
+                                    else:
+                                        self.log("[RECOVERY] 警告：未找到『車輛』分頁按鈕。")
+                                        
+                                    # 重設計時器
+                                    self.upgrades_enter_start_time = time.time()
+                                else:
+                                    time.sleep(self.check_interval)
                                 
                     elif self.state == "MASTERY_ENTER_MASTERY":
                         match = self.find_template_on_screen("car_mastery_button.png")
