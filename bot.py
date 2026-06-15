@@ -585,8 +585,8 @@ class ForzaBot:
                                 self.update_state("MASTERY_ENTER_UPGRADES")
                                 time.sleep(1.5)
                             else:
-                                self.log("已觸發換車過場動畫，等待 8 秒過場動畫...")
-                                time.sleep(8.0)
+                                self.log("已觸發換車過場動畫，等待 9 秒過場動畫...")
+                                time.sleep(9.0)
                                 self.log("過場動畫結束，發送 'Esc' 鍵進入選單...")
                                 direct_input.press_and_release(direct_input.KEY_ESC, duration=0.5)
                                 self.update_state("MASTERY_ENTER_UPGRADES")
