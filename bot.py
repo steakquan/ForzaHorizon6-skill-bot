@@ -41,7 +41,7 @@ class ForzaBot:
         self.selected_hwnd = None                # Explicit HWND from GUI
         
         self.state = "IDLE"
-        self.mode = "RACE_FARM"  # RACE_FARM, CAR_BUY, CAR_MASTERY
+        self.mode = "RACE_FARM"  # RACE_FARM, CAR_MASTERY
         self.is_running = False
         self.thread = None
         self.log_callback = print # Can be replaced by GUI log function
@@ -449,10 +449,6 @@ class ForzaBot:
             direct_input.release_key(direct_input.KEY_W)
         except Exception:
             pass
-        # Cleanup wait state tracking variables
-        for attr in ["buy_wait_stable_count", "buy_wait_last_x", "buy_wait_last_y", "buy_wait_drive_ok"]:
-            if hasattr(self, attr):
-                delattr(self, attr)
         self.update_state("IDLE")
         self.log("腳本已停止運作。")
 
@@ -463,199 +459,6 @@ class ForzaBot:
             time.sleep(1.0)
             
         if not self.is_running:
-            return
-
-        if self.mode == "CAR_BUY":
-            self.log("正在啟動自動購車模式 (多語系 OCR 自適應版)...")
-            self.buy_car_count = 0
-            self.buy_scroll_count = 0
-            self.buy_loop_index = 0
-            
-            self.update_state("BUY_START")
-            
-            while self.is_running:
-                try:
-                    if self.state == "BUY_START":
-                        # 1. 於 ESC 畫面尋找並點選「收藏日誌」（加入部件詞彙作為備用，防止OCR字元辨識缺損）
-                        targets = ["收藏日誌", "收藏日志", "收藏", "日誌", "日志", "車輛收藏", "车辆收藏", "CAR COLLECTION", "CAMPAIGN"]
-                        match = self.find_text_by_ocr_sync(targets)
-                        if match:
-                            x, y, conf = match
-                            self.log("尋找到「收藏日誌」，進行平滑移動與點擊...")
-                            direct_input.smooth_move_mouse(x, y, duration=0.3)
-                            time.sleep(0.5)
-                            direct_input.mouse_click(x, y, click_duration=0.15, settle_delay=0.15)
-                            self.update_state("BUY_ENTER_DISCOVER")
-                            time.sleep(1.5)
-                        else:
-                            self.log("等待進入 ESC 畫面，未找到「收藏日誌」項目...")
-                            time.sleep(self.check_interval)
-                            
-                    elif self.state == "BUY_ENTER_DISCOVER":
-                        # 2. 尋找並點選右側的「Discover/探索」項目
-                        targets = ["DISCOVER", "探索"]
-                        match = self.find_text_by_ocr_sync(targets)
-                        if match:
-                            x, y, conf = match
-                            self.log("尋找到「Discover」，進行平滑移動與點擊...")
-                            direct_input.smooth_move_mouse(x, y, duration=0.3)
-                            time.sleep(0.5)
-                            direct_input.mouse_click(x, y, click_duration=0.15, settle_delay=0.15)
-                            self.update_state("BUY_ENTER_COLLECTION")
-                            time.sleep(1.5)
-                        else:
-                            coll_match = self.find_text_by_ocr_sync(["車輛收藏", "车辆收藏", "CAR COLLECTION"])
-                            if coll_match:
-                                self.log("[INFO] [自動狀態修正]：已看見「車輛收藏」，轉移狀態。")
-                                self.update_state("BUY_ENTER_COLLECTION")
-                            else:
-                                self.log("等待尋找「Discover」選項...")
-                                time.sleep(self.check_interval)
-                                
-                    elif self.state == "BUY_ENTER_COLLECTION":
-                        # 3. 尋找並點選「車輛收藏」項目（加入「車輛」與「收藏」備用）
-                        targets = ["車輛收藏", "车辆收藏", "CAR COLLECTION", "車輛", "车辆", "收藏"]
-                        match = self.find_text_by_ocr_sync(targets)
-                        if match:
-                            x, y, conf = match
-                            self.log("尋找到「車輛收藏」入口，執行雙擊進入...")
-                            direct_input.smooth_move_mouse(x, y, duration=0.3)
-                            time.sleep(0.5)
-                            direct_input.mouse_click(x, y, click_duration=0.15, settle_delay=0.1)
-                            time.sleep(0.5)
-                            direct_input.mouse_click(x, y, click_duration=0.15, settle_delay=0.1)
-                            self.update_state("BUY_OPEN_MANUFACTURER")
-                            time.sleep(2.0)
-                        else:
-                            self.log("等待尋找「車輛收藏」入口...")
-                            time.sleep(self.check_interval)
-                            
-                    elif self.state == "BUY_OPEN_MANUFACTURER":
-                        # 4. 按下鍵盤 Backspace 開啟車廠選單
-                        self.log("發送 Backspace 鍵開啟車廠選單...")
-                        direct_input.press_and_release(direct_input.KEY_BACKSPACE, duration=0.5)
-                        self.update_state("BUY_SELECT_MANUFACTURER")
-                        time.sleep(1.5)
-                        
-                    elif self.state == "BUY_SELECT_MANUFACTURER":
-                        # 5. 滑鼠點擊選擇 Lamborghini 車廠 (加入部分拼音/字詞備用)
-                        targets = ["LAMBORGHINI", "藍寶堅尼", "兰博基尼", "LAMBOR", "LAMBO", "藍寶", "兰博"]
-                        match = self.find_text_by_ocr_sync(targets)
-                        if match:
-                            x, y, conf = match
-                            self.log("尋找到「LAMBORGHINI」車廠，點擊進入...")
-                            direct_input.smooth_move_mouse(x, y, duration=0.3)
-                            time.sleep(0.5)
-                            direct_input.mouse_click(x, y, click_duration=0.15, settle_delay=0.15)
-                            self.update_state("BUY_FIND_REVUELTO")
-                            self.buy_scroll_count = 0
-                            time.sleep(2.0)
-                        else:
-                            self.log("等待尋找「Lamborghini」車廠選項...")
-                            time.sleep(self.check_interval)
-                            
-                    elif self.state == "BUY_FIND_REVUELTO":
-                        # 6. 在 Lamborghini 車廠內尋找 Revuelto 車型 (加入部分拼寫備用)
-                        targets = ["REVUELTO", "REVUE", "REVUEL"]
-                        match = self.find_text_by_ocr_sync(targets)
-                        if match:
-                            x, y, conf = match
-                            self.log("尋找到「REVUELTO」車款，執行雙擊選擇...")
-                            direct_input.smooth_move_mouse(x, y, duration=0.3)
-                            time.sleep(0.5)
-                            direct_input.mouse_click(x, y, click_duration=0.15, settle_delay=0.1)
-                            time.sleep(0.5)
-                            direct_input.mouse_click(x, y, click_duration=0.15, settle_delay=0.1)
-                            
-                            self.update_state("BUY_LOOP_START")
-                            self.buy_loop_index = 0
-                            time.sleep(1.5)
-                        else:
-                            if self.buy_scroll_count < 15:
-                                self.log(f"畫面中未偵測到「REVUELTO」文字，執行第 {self.buy_scroll_count + 1} 次滑鼠向下滾動...")
-                                direct_input.mouse_scroll(-7)
-                                self.buy_scroll_count += 1
-                                time.sleep(0.4)
-                            else:
-                                self.log("錯誤：已向下滾動多次依然無法找到「REVUELTO」，腳本停止。")
-                                self.stop()
-                                break
-                                
-                    elif self.state == "BUY_LOOP_START":
-                        # 7. 購車循環起始點，購買12次後自動停止
-                        if self.buy_loop_index >= 12:
-                            self.log("已成功購買 12 輛車，達到設定上限，腳本自動停止。")
-                            self.stop()
-                            break
-                            
-                        self.log(f"開始購買第 {self.buy_loop_index + 1} / 12 輛 Revuelto... 發送 Space 鍵購買")
-                        time.sleep(0.5)
-                        direct_input.press_and_release(direct_input.KEY_SPACE, duration=0.3)
-                        self.update_state("BUY_CONFIRM_YES")
-                        time.sleep(2.0)
-                        
-                    elif self.state == "BUY_CONFIRM_YES":
-                        # 8. 詢問確認彈出視窗時，滑鼠按下畫面的「是/確定」按鈕
-                        targets = ["是", "確定", "确定", "YES", "OK"]
-                        match = self.find_text_by_ocr_sync(targets)
-                        if match:
-                            x, y, conf = match
-                            self.log("尋找到「是/確定」按鈕，進行點擊...")
-                            direct_input.smooth_move_mouse(x, y, duration=0.3)
-                            time.sleep(0.5)
-                            direct_input.mouse_click(x, y, click_duration=0.15, settle_delay=0.15)
-                            self.update_state("BUY_CONFIRM_CR")
-                            time.sleep(2.0)
-                        else:
-                            self.log("未偵測到「是/確定」按鈕，嘗試發送下鍵與 Enter 鍵作為備份...")
-                            direct_input.press_key(direct_input.KEY_DOWN)
-                            time.sleep(0.1)
-                            direct_input.release_key(direct_input.KEY_DOWN)
-                            time.sleep(0.2)
-                            direct_input.press_key(direct_input.KEY_ENTER)
-                            time.sleep(0.1)
-                            direct_input.release_key(direct_input.KEY_ENTER)
-                            self.update_state("BUY_CONFIRM_CR")
-                            time.sleep(2.0)
-                            
-                    elif self.state == "BUY_CONFIRM_CR":
-                        # 9. 花費 CR 確認視窗時，直接按下 Enter 確認購買
-                        self.log("花費 CR 確認視窗，發送 Enter 鍵進行確認購買...")
-                        direct_input.press_and_release(direct_input.KEY_ENTER, duration=0.5)
-                        self.update_state("BUY_WAIT_ADDED")
-                        self.buy_wait_start_time = time.time()
-                        time.sleep(3.0)
-                            
-                    elif self.state == "BUY_WAIT_ADDED":
-                        # 10. 等待「車輛已新增至車庫」的動畫，完成後發送 Enter 確認並計數遞增
-                        targets = ["已新增", "車庫", "车库", "ADDED", "GARAGE"]
-                        match = self.find_text_by_ocr_sync(targets)
-                        
-                        elapsed = time.time() - self.buy_wait_start_time
-                        if match or elapsed > 7.0:
-                            if match:
-                                self.log("偵測到【車輛已新增至車庫】字樣！")
-                            else:
-                                self.log("等待逾時，預設車輛已新增。")
-                                
-                            self.log("發送 Enter 鍵確認新增並關閉對話框...")
-                            direct_input.press_and_release(direct_input.KEY_ENTER, duration=0.5)
-                            
-                            self.buy_loop_index += 1
-                            self.buy_car_count = self.buy_loop_index
-                            self.log(f"進度：第 {self.buy_loop_index} / 12 輛車購買完成。")
-                            
-                            self.update_state("BUY_LOOP_START")
-                            time.sleep(2.0)
-                        else:
-                            self.log("等待車輛新增至車庫動畫播放中...")
-                            time.sleep(0.5)
-                            
-                except Exception as e:
-                    self.log(f"自動購車循環中發生異常錯誤: {e}")
-                    time.sleep(2.0)
-                    
-            self.update_state("IDLE")
             return
 
         if self.mode == "CAR_MASTERY":

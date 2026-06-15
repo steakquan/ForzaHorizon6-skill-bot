@@ -204,9 +204,6 @@ class BotGUI:
         self.rad_race = tk.Radiobutton(radio_frame, text="自動刷賽事", variable=self.bot_mode_var, value="RACE_FARM", fg="#ffffff", bg="#252533", selectcolor="#15151c", activebackground="#252533", activeforeground="#ffffff", font=(FONT_FAMILY, 9), command=self.on_mode_changed)
         self.rad_race.pack(side="left", padx=(0, 15))
         
-        self.rad_buy = tk.Radiobutton(radio_frame, text="自動購車 (Revuelto)", variable=self.bot_mode_var, value="CAR_BUY", fg="#ffffff", bg="#252533", selectcolor="#15151c", activebackground="#252533", activeforeground="#ffffff", font=(FONT_FAMILY, 9), command=self.on_mode_changed)
-        self.rad_buy.pack(side="left", padx=(0, 15))
-        
         self.rad_mastery = tk.Radiobutton(radio_frame, text="自動點熟練度", variable=self.bot_mode_var, value="CAR_MASTERY", fg="#ffffff", bg="#252533", selectcolor="#15151c", activebackground="#252533", activeforeground="#ffffff", font=(FONT_FAMILY, 9), command=self.on_mode_changed)
         self.rad_mastery.pack(side="left")
         
@@ -358,11 +355,8 @@ class BotGUI:
             ("restart.png", "重新開始字樣", "等待結算畫面出現此字樣以重新開始"),
             ("yes.png", "確認選單「是」", "確認重新開始對話框的「是」按鈕（偵測後模擬 Enter）"),
             ("start.png", "開始賽事字樣", "即將開始賽事時，按下 Enter 的字樣"),
-            ("autoshow.png", "汽車展售中心", "車庫首頁進入商城的「汽車展售中心」按鈕"),
             ("lambo_brand.png", "蘭博基尼商標", "車廠選單中的「LAMBORGHINI」廠牌圖示"),
             ("revuelto.png", "Revuelto卡片", "車輛選單中的「REVUELTO」車型卡片按鈕"),
-            ("factory_colors.png", "車廠色彩字樣", "塗裝頁面的「車廠色彩」文字區域（用以確認塗裝畫面已完全載入）"),
-            ("esc_back.png", "Esc返回按鈕", "購車過場後，底端出現的『ESC返回』按鍵圖示（確認出現後才會按下 Esc 鍵返回）"),
             ("my_cars_tile.png", "「我的車輛」入口", "車庫首頁進入我的車輛的按鈕區域（辨識後按 Enter 進入）"),
             ("select_action.png", "選擇動作標題", "選中車輛後跳出的「選擇動作」對話框標題（以此為基準點擊下方的乘駕車輛）"),
             ("upgrades_tuning.png", "「升級套件與調校」", "車庫主選單的「升級套件與調校」按鈕（辨識後滑鼠點擊）"),
@@ -498,46 +492,6 @@ class BotGUI:
                 self.draw_status_dot("#10b981") # Green
                 self.status_text.config(text="執行中 (RACING)", fg="#10b981")
                 self.state_desc.config(text="自動賽事計時等待中...", fg="#10b981")
-            elif state == "BUY_START":
-                self.draw_status_dot("#00e5ff") # Cyan
-                self.status_text.config(text="偵測中 (ACTIVE)", fg="#00e5ff")
-                self.state_desc.config(text="Esc 畫面搜尋「收藏日誌」中...", fg="#00e5ff")
-            elif state == "BUY_ENTER_DISCOVER":
-                self.draw_status_dot("#00e5ff") # Cyan
-                self.status_text.config(text="偵測中 (ACTIVE)", fg="#00e5ff")
-                self.state_desc.config(text="尋找「Discover」選項中...", fg="#00e5ff")
-            elif state == "BUY_ENTER_COLLECTION":
-                self.draw_status_dot("#00e5ff") # Cyan
-                self.status_text.config(text="偵測中 (ACTIVE)", fg="#00e5ff")
-                self.state_desc.config(text="尋找「車輛收藏」入口中...", fg="#00e5ff")
-            elif state == "BUY_OPEN_MANUFACTURER":
-                self.draw_status_dot("#3b82f6") # Blue
-                self.status_text.config(text="執行中 (ACTIVE)", fg="#3b82f6")
-                self.state_desc.config(text="開啟車廠選單 (發送 Backspace)...", fg="#3b82f6")
-            elif state == "BUY_SELECT_MANUFACTURER":
-                self.draw_status_dot("#00e5ff") # Cyan
-                self.status_text.config(text="偵測中 (ACTIVE)", fg="#00e5ff")
-                self.state_desc.config(text="選擇 Lamborghini 車廠中...", fg="#00e5ff")
-            elif state == "BUY_FIND_REVUELTO":
-                self.draw_status_dot("#00e5ff") # Cyan
-                self.status_text.config(text="偵測中 (ACTIVE)", fg="#00e5ff")
-                self.state_desc.config(text="尋找 Revuelto 車款中 (若無則滾動滾輪)...", fg="#00e5ff")
-            elif state == "BUY_LOOP_START":
-                self.draw_status_dot("#10b981") # Green
-                self.status_text.config(text="執行中 (ACTIVE)", fg="#10b981")
-                self.state_desc.config(text="開始購車循環，發送 Space 購買...", fg="#10b981")
-            elif state == "BUY_CONFIRM_YES":
-                self.draw_status_dot("#00e5ff") # Cyan
-                self.status_text.config(text="偵測中 (ACTIVE)", fg="#00e5ff")
-                self.state_desc.config(text="確認購買彈窗 (點擊「是/確定」)...", fg="#00e5ff")
-            elif state == "BUY_CONFIRM_CR":
-                self.draw_status_dot("#00e5ff") # Cyan
-                self.status_text.config(text="偵測中 (ACTIVE)", fg="#00e5ff")
-                self.state_desc.config(text="確認花費 CR (點擊「購買」)...", fg="#00e5ff")
-            elif state == "BUY_WAIT_ADDED":
-                self.draw_status_dot("#ff007f") # Pink
-                self.status_text.config(text="偵測中 (ACTIVE)", fg="#ff007f")
-                self.state_desc.config(text="等待車輛新增至車庫 (動畫中)...", fg="#ff007f")
             elif state == "MASTERY_START":
                 self.draw_status_dot("#00e5ff") # Cyan
                 self.status_text.config(text="偵測中 (ACTIVE)", fg="#00e5ff")
@@ -630,11 +584,6 @@ class BotGUI:
             required_templates = []
             if mode == "RACE_FARM":
                 required_templates = ["restart.png", "yes.png", "start.png"]
-            elif mode == "CAR_BUY":
-                if HAS_WINSDK:
-                    required_templates = []
-                else:
-                    required_templates = ["autoshow.png", "lambo_brand.png", "revuelto.png", "factory_colors.png", "esc_back.png"]
             elif mode == "CAR_MASTERY":
                 required_templates = ["my_cars_tile.png", "lambo_brand.png", "revuelto.png", "upgrades_tuning.png", "car_mastery_button.png"]
                 if not HAS_WINSDK:
@@ -748,8 +697,6 @@ class BotGUI:
         self.bot.mode = mode
         if mode == "RACE_FARM":
             self.log_message("已切換運行模式：【自動刷賽事技能點】")
-        elif mode == "CAR_BUY":
-            self.log_message("已切換運行模式：【自動購買車輛 (Lamborghini Revuelto)】")
         elif mode == "CAR_MASTERY":
             self.log_message("已切換運行模式：【自動點選車輛熟練度】")
 
