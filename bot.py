@@ -616,7 +616,7 @@ class ForzaBot:
                                 self.update_state("MASTERY_ENTER_MASTERY")
                             else:
                                 elapsed = time.time() - self.upgrades_enter_start_time
-                                if elapsed > 5.0 and HAS_WINSDK:
+                                if elapsed > 10.0 and HAS_WINSDK:
                                     self.log(f"[RECOVERY] 進入【升級套件與調校】超時 ({elapsed:.1f} 秒)，執行卡死恢復程式...")
                                     
                                     # 1. 按下 esc 打開玩家介面
@@ -626,7 +626,7 @@ class ForzaBot:
                                     
                                     # 2. 滑鼠點擊「我的 HORIZON」按鈕
                                     self.log("[RECOVERY] 步驟 2/5：尋找『我的 HORIZON』分頁並點擊...")
-                                    match_hz = self.find_text_by_ocr_sync(["我的 HORIZON", "我的HORIZON", "MY HORIZON"])
+                                    match_hz = self.find_text_by_ocr_sync(["我的 HORIZON", "我的HORIZON", "MY HORIZON", "HORIZON", "HORZ", "HOR z", "我的 HOR", "我的HOR", "horizon", "horz"])
                                     if match_hz:
                                         x_hz, y_hz, conf_hz = match_hz
                                         self.log(f"[RECOVERY] 尋找到『我的 HORIZON』(座標: {x_hz}, {y_hz})，進行平滑點擊...")
@@ -635,7 +635,14 @@ class ForzaBot:
                                         direct_input.mouse_click(x_hz, y_hz, click_duration=0.15, settle_delay=0.15)
                                         time.sleep(2.0)
                                     else:
-                                        self.log("[RECOVERY] 警告：未找到『我的 HORIZON』分頁。")
+                                        self.log("[RECOVERY] 警告：未找到『我的 HORIZON』分頁，使用預設比例位置 (0.458, 0.237) 進行點擊...")
+                                        screenshot, offset = self.capture_game_screen()
+                                        fallback_x = offset[0] + int(screenshot.size[0] * 0.458)
+                                        fallback_y = offset[1] + int(screenshot.size[1] * 0.237)
+                                        direct_input.smooth_move_mouse(fallback_x, fallback_y, duration=0.3)
+                                        time.sleep(0.5)
+                                        direct_input.mouse_click(fallback_x, fallback_y, click_duration=0.15, settle_delay=0.15)
+                                        time.sleep(2.0)
                                         
                                     # 3. 按下「返回住所」的按鈕
                                     self.log("[RECOVERY] 步驟 3/5：尋找『返回住所』按鈕並點擊...")
@@ -658,16 +665,19 @@ class ForzaBot:
                                     
                                     # 5. 到了房屋後點擊「車輛」按鈕
                                     self.log("[RECOVERY] 步驟 5/5：尋找頂部『車輛』分頁並點擊...")
-                                    match_cars = self.find_text_by_ocr_sync(["車輛", "车辆", "CARS"])
-                                    if match_cars:
-                                        x_cs, y_cs, conf_cs = match_cars
-                                        self.log(f"[RECOVERY] 尋找到『車輛』分頁 (座標: {x_cs}, {y_cs})，進行平滑點擊...")
-                                        direct_input.smooth_move_mouse(x_cs, y_cs, duration=0.3)
-                                        time.sleep(0.5)
-                                        direct_input.mouse_click(x_cs, y_cs, click_duration=0.15, settle_delay=0.15)
-                                        time.sleep(2.0)
-                                    else:
-                                        self.log("[RECOVERY] 警告：未找到『車輛』分頁按鈕。")
+                                    while self.is_running:
+                                        match_cars = self.find_text_by_ocr_sync(["車輛", "车辆", "CARS"])
+                                        if match_cars:
+                                            x_cs, y_cs, conf_cs = match_cars
+                                            self.log(f"[RECOVERY] 尋找到『車輛』分頁 (座標: {x_cs}, {y_cs})，進行平滑點擊...")
+                                            direct_input.smooth_move_mouse(x_cs, y_cs, duration=0.3)
+                                            time.sleep(0.5)
+                                            direct_input.mouse_click(x_cs, y_cs, click_duration=0.15, settle_delay=0.15)
+                                            time.sleep(2.0)
+                                            break
+                                        else:
+                                            self.log("[RECOVERY] 警告：未找到『車輛』分頁按鈕，1秒後重試...")
+                                            time.sleep(1.0)
                                         
                                     # 重設計時器
                                     self.upgrades_enter_start_time = time.time()

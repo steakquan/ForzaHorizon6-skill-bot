@@ -96,6 +96,7 @@ class BotGUI:
         
         # Track auto stop timer
         self.auto_stop_target_time = None
+        self.script_start_time = None
         
         # Thread safety control for hotkeys
         self.hotkey_stop_event = threading.Event()
@@ -159,6 +160,10 @@ class BotGUI:
         
         self.status_text = tk.Label(header_frame, text="已停止 (IDLE)", font=(FONT_FAMILY, 9, "bold"), fg="#ef4444", bg="#111116")
         self.status_text.pack(side="right", padx=8, pady=15)
+        
+        # Script execution timer label (placed in top-right of header)
+        self.lbl_elapsed_time = tk.Label(header_frame, text="已執行: 00:00:00", font=(FONT_FAMILY, 9, "bold"), fg="#a0a0b0", bg="#111116")
+        self.lbl_elapsed_time.pack(side="right", padx=(0, 15), pady=15)
         
         # Main Tab Container
         self.notebook = ttk.Notebook(self.root)
@@ -609,6 +614,7 @@ class BotGUI:
                 return
                 
             self.bot.start()
+            self.script_start_time = time.time()
             
             # Start timer if selected
             timer_val = self.combo_timer.get()
@@ -639,6 +645,8 @@ class BotGUI:
             self.lbl_countdown.config(text="")
             self.btn_start.config(state="normal")
             self.btn_stop.config(state="disabled")
+        self.script_start_time = None
+        self.lbl_elapsed_time.config(text="已執行: 00:00:00", fg="#a0a0b0")
 
     def refresh_windows_list(self):
         """Refreshes the dropdown list with visible windows."""
@@ -991,6 +999,16 @@ class BotGUI:
 
     def refresh_timer(self):
         """Periodic UI updates."""
+        # Update script elapsed time
+        if self.bot.is_running and self.script_start_time is not None:
+            elapsed = time.time() - self.script_start_time
+            hrs = int(elapsed // 3600)
+            mins = int((elapsed % 3600) // 60)
+            secs = int(elapsed % 60)
+            self.lbl_elapsed_time.config(text=f"已執行: {hrs:02d}:{mins:02d}:{secs:02d}", fg="#00e5ff")
+        else:
+            self.lbl_elapsed_time.config(text="已執行: 00:00:00", fg="#a0a0b0")
+
         # Check auto stop countdown
         if self.bot.is_running and self.auto_stop_target_time:
             remaining = self.auto_stop_target_time - time.time()
