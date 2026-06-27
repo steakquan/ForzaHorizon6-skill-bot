@@ -3,29 +3,19 @@ import re
 import time
 import tkinter as tk
 from tkinter import ttk, messagebox
-from PIL import Image, ImageTk, ImageGrab
-import threading
-import ctypes
-from ctypes import wintypes
-import win32con
-import win32gui
+from PIL import Image, ImageTk
 
-# Import modules from our project
-import direct_input
-from bot import ForzaBot, HAS_WINSDK
-
-# Try to import cv2
 try:
     import cv2
 except ImportError:
     cv2 = None
 
-# Global WinAPI details for Hotkeys
-user32 = ctypes.windll.user32
-HOTKEY_START_ID = 100
-HOTKEY_STOP_ID = 101
-VK_F10 = 0x79  # F10 key
-VK_F11 = 0x7A  # F11 key
+# Import our modular packages
+from src.state_machine import ForzaBot, HAS_WINSDK
+from src.gui.overlays import CropOverlay, CoordinateOverlay
+from src.gui.hotkeys import GlobalHotkeyManager
+from src.window_utils import get_visible_windows, set_window_topmost
+from src.screen import capture_game_screen
 
 FONT_FAMILY = "Microsoft JhengHei"
 
@@ -98,16 +88,19 @@ class BotGUI:
         self.auto_stop_target_time = None
         self.script_start_time = None
         
-        # Thread safety control for hotkeys
-        self.hotkey_stop_event = threading.Event()
-        self.hotkey_thread = None
-        
         # Custom styling
         self.setup_styles()
         # Build UI layout
         self.build_ui()
+        
         # Start hotkey listener
-        self.start_hotkey_listener()
+        self.hotkey_manager = GlobalHotkeyManager(
+            root=self.root,
+            start_callback=self.start_bot,
+            stop_callback=self.stop_bot,
+            log_callback=self.log_message
+        )
+        self.hotkey_manager.start()
         
         # Periodically refresh bot status in GUI
         self.refresh_timer()
@@ -240,18 +233,18 @@ class BotGUI:
         self.log_text.config(yscrollcommand=scrollbar.set)
         
         # Setup Verilog-like log coloring tags
-        self.log_text.tag_config("time", foreground="#5f7181")        # Cool steel gray for timestamp
-        self.log_text.tag_config("state", foreground="#00e5ff", font=("Consolas", 9, "bold"))  # Bright Cyan for state changes
-        self.log_text.tag_config("detect", foreground="#10b981")      # Emerald Green for template detection
-        self.log_text.tag_config("action", foreground="#fbbf24")      # Amber Yellow for keyboard/mouse emulation
-        self.log_text.tag_config("warn", foreground="#f97316", font=("Consolas", 9, "bold"))   # Orange for warnings
-        self.log_text.tag_config("error", foreground="#ef4444", font=("Consolas", 9, "bold"))  # Bright Red for errors
-        self.log_text.tag_config("info", foreground="#94a3b8")        # Slate Gray for general text
-        self.log_text.tag_config("number", foreground="#ec4899")      # Bright Pink/Magenta for numbers
-        self.log_text.tag_config("key", foreground="#a855f7", font=("Consolas", 9, "bold"))     # Purple for keys
-        self.log_text.tag_config("template", foreground="#34d399")   # Mint Green for filenames
-        self.log_text.tag_config("badge", foreground="#3b82f6", font=("Consolas", 9, "bold"))  # Blue bold for brackets/badges
-        self.log_text.tag_config("bracket", foreground="#22d3ee", font=("Consolas", 9, "bold")) # Cyan/teal bold for UI names
+        self.log_text.tag_config("time", foreground="#5f7181")
+        self.log_text.tag_config("state", foreground="#00e5ff", font=("Consolas", 9, "bold"))
+        self.log_text.tag_config("detect", foreground="#10b981")
+        self.log_text.tag_config("action", foreground="#fbbf24")
+        self.log_text.tag_config("warn", foreground="#f97316", font=("Consolas", 9, "bold"))
+        self.log_text.tag_config("error", foreground="#ef4444", font=("Consolas", 9, "bold"))
+        self.log_text.tag_config("info", foreground="#94a3b8")
+        self.log_text.tag_config("number", foreground="#ec4899")
+        self.log_text.tag_config("key", foreground="#a855f7", font=("Consolas", 9, "bold"))
+        self.log_text.tag_config("template", foreground="#34d399")
+        self.log_text.tag_config("badge", foreground="#3b82f6", font=("Consolas", 9, "bold"))
+        self.log_text.tag_config("bracket", foreground="#22d3ee", font=("Consolas", 9, "bold"))
 
     def build_settings_tab(self):
         settings_card = ttk.Frame(self.tab_settings, style="Card.TFrame")
@@ -280,7 +273,7 @@ class BotGUI:
         self.chk_topmost = tk.Checkbutton(grid_frame, text="視窗強制置頂", variable=self.is_topmost_var, fg="#a0a0b0", bg="#252533", selectcolor="#15151c", activebackground="#252533", activeforeground="#a0a0b0", font=(FONT_FAMILY, 9), command=self.toggle_topmost)
         self.chk_topmost.grid(row=0, column=2, sticky="w", padx=(15, 0), pady=8)
         
-        # Row 1: Duration & Background Mode
+        # Row 1: Duration
         tk.Label(grid_frame, text="單局賽事秒數:", font=(FONT_FAMILY, 9), fg="#a0a0b0", bg="#252533", anchor="w").grid(row=1, column=0, sticky="w", pady=8)
         self.entry_duration = tk.Entry(grid_frame, bg="#15151c", fg="#ffffff", insertbackground="#ffffff", relief="flat", width=12, font=(FONT_FAMILY, 9))
         self.entry_duration.insert(0, str(int(self.bot.race_duration)))
@@ -323,13 +316,10 @@ class BotGUI:
         self.btn_save_settings.grid(row=5, column=1, sticky="e", pady=(20, 0))
 
     def build_calib_tab(self):
-        # Create a scrollable container for templates
         canvas = tk.Canvas(self.tab_calib, bg="#1a1a22", highlightthickness=0)
         scrollbar = ttk.Scrollbar(self.tab_calib, orient="vertical", command=canvas.yview)
         
         template_card = ttk.Frame(canvas, style="Card.TFrame")
-        
-        # Configure scrollbar and canvas binding
         canvas_window = canvas.create_window((0, 0), window=template_card, anchor="nw")
         
         def on_canvas_configure(event):
@@ -342,7 +332,6 @@ class BotGUI:
         template_card.bind("<Configure>", on_frame_configure)
         canvas.configure(yscrollcommand=scrollbar.set)
         
-        # Enable mousewheel scrolling on Calib tab canvas
         def _on_mousewheel(event):
             canvas.yview_scroll(int(-1*(event.delta/120)), "units")
         canvas.bind_all("<MouseWheel>", lambda e: _on_mousewheel(e) if self.notebook.select() == self.notebook.tabs()[2] else None)
@@ -373,19 +362,15 @@ class BotGUI:
             item_frame = tk.Frame(template_card, bg="#1e1e28", bd=1, relief="solid", highlightthickness=0)
             item_frame.pack(fill="x", padx=15, pady=5)
             
-            # Title
             lbl_title = tk.Label(item_frame, text=title, font=(FONT_FAMILY, 9, "bold"), fg="#ffffff", bg="#1e1e28")
             lbl_title.pack(anchor="w", padx=8, pady=(4, 0))
             
-            # Subframe for contents
             detail_frame = tk.Frame(item_frame, bg="#1e1e28")
             detail_frame.pack(fill="x", padx=8, pady=4)
             
-            # Thumbnail
             thumb_canvas = tk.Canvas(detail_frame, width=50, height=35, bg="#15151c", highlightthickness=1, highlightbackground="#3e3e4f")
             thumb_canvas.pack(side="left", padx=(0, 10))
             
-            # Text information & button
             info_btn_frame = tk.Frame(detail_frame, bg="#1e1e28")
             info_btn_frame.pack(side="left", fill="both", expand=True)
             
@@ -400,7 +385,6 @@ class BotGUI:
                 "label": lbl_title
             }
             
-        # Divider line
         div = tk.Frame(template_card, height=1, bg="#3e3e4f")
         div.pack(fill="x", padx=15, pady=15)
         
@@ -410,7 +394,6 @@ class BotGUI:
         grid_calib_desc = tk.Label(template_card, text="為實現自動點選熟練度技能，請在進入車輛熟練度畫面時，點選下方按鈕分別校準技能樹的最左上角與最右下角按鈕的中心位置。", font=(FONT_FAMILY, 9), fg="#a0a0b0", bg="#252533", justify="left", wraplength=500)
         grid_calib_desc.pack(anchor="w", padx=15, pady=(0, 10))
         
-        # Grid frame for calibration buttons
         grid_calib_frame = tk.Frame(template_card, bg="#252533")
         grid_calib_frame.pack(fill="x", padx=15, pady=5)
         
@@ -451,82 +434,75 @@ class BotGUI:
     def log_message(self, message):
         """Thread-safe logging to the text widget with Verilog-like multi-coloring."""
         def action():
-            # Insert timestamp in gray
             self.log_text.insert(tk.END, f"{time.strftime('%H:%M:%S')} - ", "time")
-            
-            # Parse message into segments and insert with appropriate tags
             parts = LOG_TOKEN_PATTERN.split(message)
             for i, part in enumerate(parts):
                 if not part:
                     continue
                 if i % 2 == 1:
-                    # Matched token
                     tag = get_tag_for_token(part)
                     self.log_text.insert(tk.END, part, tag)
                 else:
-                    # Unmatched text
                     self.log_text.insert(tk.END, part, "info")
-                    
             self.log_text.insert(tk.END, "\n")
             self.log_text.see(tk.END)
         self.root.after(0, action)
-
 
     def on_state_change(self, state):
         """Callback for bot state transitions."""
         def action():
             if state == "IDLE":
-                self.draw_status_dot("#ef4444") # Red
+                self.draw_status_dot("#ef4444")
                 self.status_text.config(text="已停止 (IDLE)", fg="#ef4444")
                 self.state_desc.config(text="未啟動 - 請按 F10 鍵或點擊下方啟動按鈕", fg="#ffffff")
                 self.btn_start.config(state="normal")
                 self.btn_stop.config(state="disabled")
             elif state == "WAIT_FOR_SETTLEMENT":
-                self.draw_status_dot("#00e5ff") # Cyan
+                self.draw_status_dot("#00e5ff")
                 self.status_text.config(text="偵測中 (ACTIVE)", fg="#00e5ff")
                 self.state_desc.config(text="偵測結算畫面中... (尋找：重新開始)", fg="#00e5ff")
             elif state == "WAIT_FOR_CONFIRM":
-                self.draw_status_dot("#3b82f6") # Blue
+                self.draw_status_dot("#3b82f6")
                 self.status_text.config(text="偵測中 (ACTIVE)", fg="#3b82f6")
                 self.state_desc.config(text="偵測對話框中... (尋找：確認-是)", fg="#3b82f6")
             elif state == "WAIT_FOR_START_EVENT":
-                self.draw_status_dot("#ff007f") # Pink
+                self.draw_status_dot("#ff007f")
                 self.status_text.config(text="偵測中 (ACTIVE)", fg="#ff007f")
                 self.state_desc.config(text="偵測賽事起跑中... (尋找：開始賽事)", fg="#ff007f")
             elif state == "RACING":
-                self.draw_status_dot("#10b981") # Green
+                self.draw_status_dot("#10b981")
                 self.status_text.config(text="執行中 (RACING)", fg="#10b981")
                 self.state_desc.config(text="自動賽事計時等待中...", fg="#10b981")
             elif state == "MASTERY_START":
-                self.draw_status_dot("#00e5ff") # Cyan
+                self.draw_status_dot("#00e5ff")
                 self.status_text.config(text="偵測中 (ACTIVE)", fg="#00e5ff")
                 self.state_desc.config(text="搜尋「我的車輛」按鈕... (尋找：my_cars_tile.png)", fg="#00e5ff")
             elif state == "MASTERY_OPEN_MANUFACTURER":
-                self.draw_status_dot("#3b82f6") # Blue
+                self.draw_status_dot("#3b82f6")
                 self.status_text.config(text="執行中 (ACTIVE)", fg="#3b82f6")
                 self.state_desc.config(text="已進入車庫，發送 Backspace 以開啟車廠篩選...", fg="#3b82f6")
             elif state == "MASTERY_SELECT_MANUFACTURER":
-                self.draw_status_dot("#00e5ff") # Cyan
+                self.draw_status_dot("#00e5ff")
                 self.status_text.config(text="偵測中 (ACTIVE)", fg="#00e5ff")
                 self.state_desc.config(text="搜尋 LAMBORGHINI 車廠標誌... (尋找：lambo_brand.png)", fg="#00e5ff")
             elif state == "MASTERY_SELECT_CAR":
-                self.draw_status_dot("#00e5ff") # Cyan
+                self.draw_status_dot("#00e5ff")
                 self.status_text.config(text="偵測中 (ACTIVE)", fg="#00e5ff")
                 self.state_desc.config(text=f"選取第 {self.bot.mastery_car_index + 1} 輛 REVUELTO 車輛中... (尋找：revuelto.png)", fg="#00e5ff")
             elif state == "MASTERY_DRIVE_PROMPT":
-                self.draw_status_dot("#00e5ff") # Cyan
+                self.draw_status_dot("#00e5ff")
                 self.status_text.config(text="偵測中 (ACTIVE)", fg="#00e5ff")
                 self.state_desc.config(text="確認「選擇動作」提示... (尋找：select_action.png)", fg="#00e5ff")
             elif state == "MASTERY_ENTER_UPGRADES":
-                self.draw_status_dot("#00e5ff") # Cyan
+                self.draw_status_dot("#00e5ff")
                 self.status_text.config(text="偵測中 (ACTIVE)", fg="#00e5ff")
                 self.state_desc.config(text="搜尋「升級套件與調校」入口... (尋找：upgrades_tuning.png)", fg="#00e5ff")
             elif state == "MASTERY_ENTER_MASTERY":
-                self.draw_status_dot("#00e5ff") # Cyan
+                self.draw_status_dot("#00e5ff")
                 self.status_text.config(text="偵測中 (ACTIVE)", fg="#00e5ff")
                 self.state_desc.config(text="搜尋「車輛熟練度」按鈕... (尋找：car_mastery_button.png)", fg="#00e5ff")
             elif state == "MASTERY_UNLOCK_SKILLS":
-                self.draw_status_dot("#10b981") # Green
+                self.draw_status_dot("#10b981")
                 self.status_text.config(text="執行中 (ACTIVE)", fg="#10b981")
                 self.state_desc.config(text="正在解鎖技能點 (4x4 網格)...", fg="#10b981")
         self.root.after(0, action)
@@ -554,7 +530,7 @@ class BotGUI:
             self.bot.selected_hwnd = self.windows_map.get(window_title)
             self.bot.mastery_car_index = mastery_index
             
-            self.bot.save_config()
+            self.bot.save_bot_config()
             self.log_message(f"設定已儲存：賽事時間 {duration} 秒，相似門檻 {threshold}，已處理車數 {mastery_index}，視窗標題「{window_title}」")
             messagebox.showinfo("成功", "設定參數已儲存！", parent=self.root)
         except ValueError as e:
@@ -564,26 +540,13 @@ class BotGUI:
         self.entry_mastery_index.delete(0, "end")
         self.entry_mastery_index.insert(0, "0")
         self.bot.mastery_car_index = 0
-        self.bot.save_config()
+        self.bot.save_bot_config()
         self.log_message("已重置車輛熟練度處理索引為 0")
 
     def start_bot(self):
-        # Apply current inputs first
-        try:
-            self.bot.race_duration = float(self.entry_duration.get())
-            self.bot.threshold = float(self.entry_threshold.get())
-            window_title = self.combo_windows.get()
-            self.bot.game_window_title = window_title
-            self.bot.selected_hwnd = self.windows_map.get(window_title)
-            self.bot.mode = self.bot_mode_var.get()
-        except ValueError:
-            pass
-            
         if not self.bot.is_running:
-            # Check OpenCV again in case it finished installing
             self.check_opencv_status()
             
-            # Check if templates exist for the selected mode
             missing = []
             mode = self.bot_mode_var.get()
             required_templates = []
@@ -601,7 +564,6 @@ class BotGUI:
             for filename in required_templates:
                 path = os.path.join(self.bot.templates_dir, filename)
                 if not os.path.exists(path):
-                    # Find the title for the filename
                     title = filename
                     for fn, t, _ in self.temp_items:
                         if fn == filename:
@@ -616,7 +578,6 @@ class BotGUI:
             self.bot.start()
             self.script_start_time = time.time()
             
-            # Start timer if selected
             timer_val = self.combo_timer.get()
             if timer_val != "不限時":
                 seconds = 0
@@ -628,75 +589,26 @@ class BotGUI:
                     seconds = 7200
                 elif timer_val == "3 小時":
                     seconds = 10800
-                    
-                if seconds > 0:
-                    self.auto_stop_target_time = time.time() + seconds
-                    self.log_message(f"已啟動定時關閉：將於 {timer_val} 後自動停止掛機。")
-            else:
-                self.auto_stop_target_time = None
+                self.auto_stop_target_time = time.time() + seconds
+                self.log_message(f"已設定自動掛機定時器：{timer_val}後自動停止")
                 
             self.btn_start.config(state="disabled")
             self.btn_stop.config(state="normal")
-            
+
     def stop_bot(self):
         if self.bot.is_running:
             self.bot.stop()
+            self.script_start_time = None
             self.auto_stop_target_time = None
             self.lbl_countdown.config(text="")
             self.btn_start.config(state="normal")
             self.btn_stop.config(state="disabled")
-        self.script_start_time = None
-        self.lbl_elapsed_time.config(text="已執行: 00:00:00", fg="#a0a0b0")
-
-    def refresh_windows_list(self):
-        """Refreshes the dropdown list with visible windows."""
-        self.windows_map = {}
-        window_list = []
-        
-        def enum_windows_callback(hwnd, extra):
-            if win32gui.IsWindowVisible(hwnd):
-                title = win32gui.GetWindowText(hwnd)
-                if title and title != "Program Manager" and title != self.root.title():
-                    rect = win32gui.GetWindowRect(hwnd)
-                    w = rect[2] - rect[0]
-                    h = rect[3] - rect[1]
-                    if w > 100 and h > 100:
-                        window_list.append((title, hwnd))
-                        
-        win32gui.EnumWindows(enum_windows_callback, None)
-        window_list.sort(key=lambda x: x[0].lower())
-        
-        titles = []
-        for title, hwnd in window_list:
-            display_title = title
-            if display_title in self.windows_map:
-                display_title = f"{title} (HWND: {hwnd})"
-            self.windows_map[display_title] = hwnd
-            titles.append(display_title)
-            
-        self.combo_windows["values"] = titles
-        
-        # Auto-select Forza
-        for title in titles:
-            if "forza" in title.lower():
-                self.combo_windows.set(title)
-                self.bot.game_window_title = title
-                self.bot.selected_hwnd = self.windows_map[title]
-                break
-        else:
-            if titles:
-                self.combo_windows.set(titles[0])
-                self.bot.game_window_title = titles[0]
-                self.bot.selected_hwnd = self.windows_map[titles[0]]
-                
-        self.log_message(f"已整理目前電腦上的視窗列表（共 {len(titles)} 個）")
 
     def on_window_selected(self, event):
         selected_title = self.combo_windows.get()
         if selected_title:
             self.bot.game_window_title = selected_title
             self.bot.selected_hwnd = self.windows_map.get(selected_title)
-            # Reset topmost when switching windows
             self.is_topmost_var.set(False)
             self.log_message(f"已選擇遊戲視窗：{selected_title}")
 
@@ -708,6 +620,19 @@ class BotGUI:
         elif mode == "CAR_MASTERY":
             self.log_message("已切換運行模式：【自動點選車輛熟練度】")
 
+    def refresh_windows_list(self):
+        """Refreshes the dropdown list with visible windows."""
+        self.windows_map = {}
+        win_list = get_visible_windows(ignored_hwnd=self.root.winfo_id())
+        titles = []
+        for title, hwnd in win_list:
+            self.windows_map[title] = hwnd
+            titles.append(title)
+        self.combo_windows["values"] = titles
+        if titles:
+            self.combo_windows.current(0)
+            self.on_window_selected(None)
+
     def toggle_topmost(self):
         """Toggles the topmost status of the selected window."""
         selected_title = self.combo_windows.get()
@@ -717,30 +642,20 @@ class BotGUI:
             return
             
         hwnd = self.windows_map.get(selected_title)
-        if not hwnd or not win32gui.IsWindow(hwnd):
-            messagebox.showerror("錯誤", "找不到該視窗的有效控制代碼 (HWND)，請重新整理列表。", parent=self.root)
-            self.is_topmost_var.set(False)
-            return
-            
         enable = self.is_topmost_var.get()
-        try:
+        success = set_window_topmost(hwnd, enable)
+        if success:
             if enable:
-                win32gui.SetWindowPos(hwnd, win32con.HWND_TOPMOST, 0, 0, 0, 0,
-                                     win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_SHOWWINDOW)
                 self.log_message(f"已將視窗「{selected_title}」強制置頂顯示。")
             else:
-                win32gui.SetWindowPos(hwnd, win32con.HWND_NOTOPMOST, 0, 0, 0, 0,
-                                     win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_SHOWWINDOW)
-                self.log_message(f"已取消視窗「{selected_title}」的置頂顯示。")
-        except Exception as e:
-            self.log_message(f"置頂控制失敗: {e}")
-            messagebox.showerror("錯誤", f"無法設定置頂狀態: {e}", parent=self.root)
+                self.log_message(f"已將視窗「{selected_title}」取消置頂顯示。")
+        else:
+            self.log_message("置頂控制失敗。")
+            messagebox.showerror("錯誤", "找不到該視窗的有效控制代碼 (HWND)，請重新整理列表。", parent=self.root)
             self.is_topmost_var.set(False)
 
-
-
     def show_deactivate_help(self):
-        """Shows the guide window explaining background deactivation and how to use DisplayFusion / VM."""
+        """Shows the guide window explaining background deactivation."""
         help_win = tk.Toplevel(self.root)
         help_win.title("背景掛機與焦點設定指引")
         help_win.geometry("540x480")
@@ -750,7 +665,6 @@ class BotGUI:
         help_win.transient(self.root)
         help_win.grab_set()
         
-        # Center the window relative to root
         root_x = self.root.winfo_x()
         root_y = self.root.winfo_y()
         help_win.geometry(f"+{root_x + 50}+{root_y + 50}")
@@ -761,7 +675,6 @@ class BotGUI:
         text_frame = tk.Frame(help_win, bg="#252533", bd=1, relief="solid", highlightthickness=0)
         text_frame.pack(fill="both", expand=True, padx=20, pady=(0, 15))
         
-        # Use a Text widget to render formatted information with scrollbar
         text_widget = tk.Text(text_frame, bg="#252533", fg="#ffffff", font=(FONT_FAMILY, 9), wrap="word", relief="flat", padx=10, pady=10)
         text_widget.pack(side="left", fill="both", expand=True)
         
@@ -800,7 +713,7 @@ class BotGUI:
         )
         
         text_widget.insert("1.0", guide_text)
-        text_widget.config(state="disabled") # Make it read-only
+        text_widget.config(state="disabled")
         
         btn_close = tk.Button(help_win, text="我知道了", font=(FONT_FAMILY, 9, "bold"), bg="#3b82f6", fg="#ffffff", activebackground="#2563eb", activeforeground="#ffffff", relief="flat", padx=20, pady=5, command=help_win.destroy)
         btn_close.pack(pady=(0, 15))
@@ -815,7 +728,6 @@ class BotGUI:
         help_win.transient(self.root)
         help_win.grab_set()
         
-        # Center relative to root
         root_x = self.root.winfo_x()
         root_y = self.root.winfo_y()
         help_win.geometry(f"+{root_x + 80}+{root_y + 100}")
@@ -850,10 +762,8 @@ class BotGUI:
         btn_close = tk.Button(help_win, text="我知道了", font=(FONT_FAMILY, 9, "bold"), bg="#3b82f6", fg="#ffffff", activebackground="#2563eb", activeforeground="#ffffff", relief="flat", padx=20, pady=5, command=help_win.destroy)
         btn_close.pack(pady=(0, 15))
 
-    # Template Capture System
     def capture_template(self, filename):
         """Handles screenshot capturing and overlay for selection."""
-        # Check if bot is running
         if self.bot.is_running:
             messagebox.showwarning("提示", "請先停止腳本後再擷取模板。", parent=self.root)
             return
@@ -864,22 +774,8 @@ class BotGUI:
         
         time.sleep(0.6)
         
-        hwnd, rect = self.bot.find_game_window()
-        offset = (0, 0)
+        screenshot, offset = capture_game_screen(self.bot.selected_hwnd, self.bot.game_window_title)
         
-        if hwnd and rect:
-            left, top, right, bottom = rect
-            if left < 0: left = 0
-            if top < 0: top = 0
-            if right > left and bottom > top:
-                screenshot = ImageGrab.grab(bbox=(left, top, right, bottom))
-                offset = (left, top)
-            else:
-                screenshot = ImageGrab.grab()
-        else:
-            screenshot = ImageGrab.grab()
-            self.log_message("找不到遊戲視窗，擷取全螢幕畫面。")
-            
         def on_crop_finished(success, result):
             self.root.deiconify()
             self.root.lift()
@@ -907,20 +803,8 @@ class BotGUI:
         
         time.sleep(0.6)
         
-        hwnd, rect = self.bot.find_game_window()
+        screenshot, offset = capture_game_screen(self.bot.selected_hwnd, self.bot.game_window_title)
         
-        if hwnd and rect:
-            left, top, right, bottom = rect
-            if left < 0: left = 0
-            if top < 0: top = 0
-            if right > left and bottom > top:
-                screenshot = ImageGrab.grab(bbox=(left, top, right, bottom))
-            else:
-                screenshot = ImageGrab.grab()
-        else:
-            screenshot = ImageGrab.grab()
-            self.log_message("找不到遊戲視窗，擷取全螢幕畫面。")
-            
         def on_select_finished(success, result):
             self.root.deiconify()
             self.root.lift()
@@ -935,7 +819,7 @@ class BotGUI:
                 else:
                     self.bot.mastery_grid_bottomright = (x, y)
                     self.lbl_mastery_bottomright.config(text=f"已設定: ({x}, {y})", fg="#2efb57")
-                self.bot.save_config()
+                self.bot.save_bot_config()
                 self.log_message(f"技能樹{point_name}座標校準成功！相對座標: ({x}, {y})")
             else:
                 self.log_message(f"技能樹校準取消或失敗: {result}")
@@ -954,7 +838,6 @@ class BotGUI:
         if os.path.exists(path):
             try:
                 img = Image.open(path)
-                # Resize to fit 50x35 canvas
                 img.thumbnail((50, 35))
                 tk_img = ImageTk.PhotoImage(img)
                 self.thumbnails[filename] = tk_img
@@ -968,38 +851,8 @@ class BotGUI:
             canvas.create_text(25, 17, text="未設定", fill="#ef4444", font=(FONT_FAMILY, 7))
             self.temp_frames[filename]["label"].config(fg="#ffffff")
 
-    # Global Hotkey Listener System
-    def start_hotkey_listener(self):
-        self.hotkey_stop_event.clear()
-        self.hotkey_thread = threading.Thread(target=self._hotkey_loop, daemon=True)
-        self.hotkey_thread.start()
-
-    def _hotkey_loop(self):
-        if not user32.RegisterHotKey(0, HOTKEY_START_ID, 0, VK_F10):
-            self.log_message("警告: 無法註冊全域啟動快捷鍵 F10 (可能被佔用)")
-        if not user32.RegisterHotKey(0, HOTKEY_STOP_ID, 0, VK_F11):
-            self.log_message("警告: 無法註冊全域停止快捷鍵 F11 (可能被佔用)")
-            
-        msg = wintypes.MSG()
-        while not self.hotkey_stop_event.is_set():
-            r = user32.GetMessageW(ctypes.byref(msg), 0, 0, 0)
-            if r != 0:
-                if msg.message == win32con.WM_HOTKEY:
-                    if msg.wParam == HOTKEY_START_ID:
-                        self.log_message("全域快捷鍵 F10 觸發 -> 啟動腳本")
-                        self.root.after(0, self.start_bot)
-                    elif msg.wParam == HOTKEY_STOP_ID:
-                        self.log_message("全域快捷鍵 F11 觸發 -> 停止腳本")
-                        self.root.after(0, self.stop_bot)
-                user32.TranslateMessage(ctypes.byref(msg))
-                user32.DispatchMessageW(ctypes.byref(msg))
-                
-        user32.UnregisterHotKey(0, HOTKEY_START_ID)
-        user32.UnregisterHotKey(0, HOTKEY_STOP_ID)
-
     def refresh_timer(self):
         """Periodic UI updates."""
-        # Update script elapsed time
         if self.bot.is_running and self.script_start_time is not None:
             elapsed = time.time() - self.script_start_time
             hrs = int(elapsed // 3600)
@@ -1009,7 +862,6 @@ class BotGUI:
         else:
             self.lbl_elapsed_time.config(text="已執行: 00:00:00", fg="#a0a0b0")
 
-        # Check auto stop countdown
         if self.bot.is_running and self.auto_stop_target_time:
             remaining = self.auto_stop_target_time - time.time()
             if remaining <= 0:
@@ -1028,7 +880,6 @@ class BotGUI:
                 self.auto_stop_target_time = None
                 self.lbl_countdown.config(text="")
 
-        # Update mastery index in UI if it changed in bot
         try:
             current_ui_val = int(self.entry_mastery_index.get())
             if current_ui_val != self.bot.mastery_car_index:
@@ -1037,134 +888,10 @@ class BotGUI:
         except Exception:
             pass
 
-        # Schedule next tick every 500ms
         self.root.after(500, self.refresh_timer)
 
     def on_closing(self):
         if self.bot.is_running:
             self.bot.stop()
-        self.hotkey_stop_event.set()
-        if self.hotkey_thread and self.hotkey_thread.ident:
-            try:
-                user32.PostThreadMessageW(self.hotkey_thread.ident, win32con.WM_QUIT, 0, 0)
-            except Exception:
-                pass
+        self.hotkey_manager.stop()
         self.root.destroy()
-
-
-class CropOverlay:
-    """Fullscreen borderless canvas that lets the user crop a region."""
-    def __init__(self, parent, screenshot, save_path, callback):
-        self.screenshot = screenshot
-        self.save_path = save_path
-        self.callback = callback
-        
-        self.top = tk.Toplevel(parent)
-        self.top.attributes("-fullscreen", True)
-        self.top.attributes("-topmost", True)
-        self.top.lift()
-        self.top.focus_force()
-        
-        self.width = screenshot.width
-        self.height = screenshot.height
-        
-        self.canvas = tk.Canvas(self.top, width=self.width, height=self.height, cursor="cross")
-        self.canvas.pack(fill="both", expand=True)
-        
-        self.tk_img = ImageTk.PhotoImage(screenshot)
-        self.canvas.create_image(0, 0, anchor="nw", image=self.tk_img)
-        
-        self.inst_lbl = self.canvas.create_text(self.width // 2, 30, text="按住滑鼠左鍵並拖曳來框選按鈕文字區域。按 ESC 取消選取。", fill="#ef4444", font=(FONT_FAMILY, 12, "bold"))
-        self.canvas.create_rectangle(self.width // 2 - 250, 10, self.width // 2 + 250, 50, fill="#15151c", outline="#00e5ff", width=1)
-        self.canvas.tag_raise(self.inst_lbl)
-        
-        self.canvas.bind("<ButtonPress-1>", self.on_press)
-        self.canvas.bind("<B1-Motion>", self.on_drag)
-        self.canvas.bind("<ButtonRelease-1>", self.on_release)
-        
-        self.start_x = None
-        self.start_y = None
-        self.rect_id = None
-        
-        self.top.bind("<Escape>", lambda e: self.close(False, "User cancelled"))
-
-    def on_press(self, event):
-        self.start_x = event.x
-        self.start_y = event.y
-        self.rect_id = self.canvas.create_rectangle(self.start_x, self.start_y, self.start_x, self.start_y, outline="#00e5ff", width=2)
-
-    def on_drag(self, event):
-        cur_x = event.x
-        cur_y = event.y
-        self.canvas.coords(self.rect_id, self.start_x, self.start_y, cur_x, cur_y)
-
-    def on_release(self, event):
-        end_x = event.x
-        end_y = event.y
-        
-        x1 = min(self.start_x, end_x)
-        y1 = min(self.start_y, end_y)
-        x2 = max(self.start_x, end_x)
-        y2 = max(self.start_y, end_y)
-        
-        w = x2 - x1
-        h = y2 - y1
-        
-        if w > 5 and h > 5:
-            try:
-                cropped = self.screenshot.crop((x1, y1, x2, y2))
-                os.makedirs(os.path.dirname(self.save_path), exist_ok=True)
-                cropped.save(self.save_path)
-                self.close(True, self.save_path)
-            except Exception as e:
-                self.close(False, f"儲存錯誤: {e}")
-        else:
-            self.close(False, "選取範圍過小")
-
-    def close(self, success, msg):
-        self.top.destroy()
-        self.callback(success, msg)
-
-
-class CoordinateOverlay:
-    """Fullscreen borderless canvas that lets the user select a single coordinate."""
-    def __init__(self, parent, screenshot, callback):
-        self.screenshot = screenshot
-        self.callback = callback
-        
-        self.top = tk.Toplevel(parent)
-        self.top.attributes("-fullscreen", True)
-        self.top.attributes("-topmost", True)
-        self.top.lift()
-        self.top.focus_force()
-        
-        self.width = screenshot.width
-        self.height = screenshot.height
-        
-        self.canvas = tk.Canvas(self.top, width=self.width, height=self.height, cursor="crosshair")
-        self.canvas.pack(fill="both", expand=True)
-        
-        self.tk_img = ImageTk.PhotoImage(screenshot)
-        self.canvas.create_image(0, 0, anchor="nw", image=self.tk_img)
-        
-        self.inst_lbl = self.canvas.create_text(self.width // 2, 30, text="請在畫面上點擊目標點的中心位置。按 ESC 取消。", fill="#ef4444", font=(FONT_FAMILY, 12, "bold"))
-        self.canvas.create_rectangle(self.width // 2 - 250, 10, self.width // 2 + 250, 50, fill="#15151c", outline="#00e5ff", width=1)
-        self.canvas.tag_raise(self.inst_lbl)
-        
-        self.canvas.bind("<ButtonRelease-1>", self.on_click)
-        self.top.bind("<Escape>", lambda e: self.close(False, "User cancelled"))
-
-    def on_click(self, event):
-        x = event.x
-        y = event.y
-        self.close(True, (x, y))
-
-    def close(self, success, result):
-        self.top.destroy()
-        self.callback(success, result)
-
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = BotGUI(root)
-    root.protocol("WM_DELETE_WINDOW", app.on_closing)
-    root.mainloop()

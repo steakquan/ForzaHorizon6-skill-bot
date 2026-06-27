@@ -1,6 +1,5 @@
 import ctypes
 import time
-
 from ctypes import wintypes
 
 # Input Types
@@ -23,7 +22,6 @@ MOUSEEVENTF_RIGHTUP = 0x0010
 MOUSEEVENTF_ABSOLUTE = 0x8000
 
 # DirectInput Scan Codes
-# Refer to standard keyboard scan codes (Set 1 / Set 2)
 KEY_X = 0x2D       # 'X' key
 KEY_ENTER = 0x1C   # 'Enter' key
 KEY_ESC = 0x01     # 'ESC' key
@@ -161,7 +159,6 @@ def mouse_click(x, y, click_duration=0.1, settle_delay=0.1):
 
 def mouse_scroll(clicks):
     """Scrolls the mouse wheel. Positive for up, negative for down."""
-    # MOUSEEVENTF_WHEEL = 0x0800
     extra = ctypes.c_void_p(0)
     ii_ = INPUT_UNION()
     delta = clicks * 120
@@ -169,11 +166,3 @@ def mouse_scroll(clicks):
     ii_.mi = MOUSEINPUT(0, 0, unsigned_delta, 0x0800, 0, extra)
     input_wheel = INPUT(INPUT_MOUSE, ii_)
     ctypes.windll.user32.SendInput(1, ctypes.pointer(input_wheel), ctypes.sizeof(input_wheel))
-
-# Simple test script
-if __name__ == "__main__":
-    print("DirectInput Test: Waiting 3 seconds, then typing 'X'...")
-    time.sleep(3)
-    print("Pressing X...")
-    press_and_release(KEY_X)
-    print("Done.")

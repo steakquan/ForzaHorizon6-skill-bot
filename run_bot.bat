@@ -79,7 +79,7 @@ echo ===================================================
 echo [警告 / WARNING] 偵測到遺失必要的 Python 套件！
 echo 正在使用主控台模式啟動以顯示詳細錯誤訊息：
 echo ---------------------------------------------------
-%BOT_PYTHON_EXE% gui.py
+%BOT_PYTHON_EXE% main.py
 echo ---------------------------------------------------
 echo.
 echo 請執行 'install_requirements.bat' 以安裝所有必要套件。
@@ -90,5 +90,5 @@ exit /b 1
 :python_ready
 :: 4. Run the GUI silently using pythonw
 echo 正在啟動小助手...
-start "" %BOT_PYTHONW_EXE% gui.py
+start "" %BOT_PYTHONW_EXE% main.py
 exit /b 0
