@@ -556,9 +556,9 @@ class BotGUI:
             
             self.bot.save_config()
             self.log_message(f"設定已儲存：賽事時間 {duration} 秒，相似門檻 {threshold}，已處理車數 {mastery_index}，視窗標題「{window_title}」")
-            messagebox.showinfo("成功", "設定參數已儲存！")
+            messagebox.showinfo("成功", "設定參數已儲存！", parent=self.root)
         except ValueError as e:
-            messagebox.showerror("錯誤", f"輸入值無效：{e}")
+            messagebox.showerror("錯誤", f"輸入值無效：{e}", parent=self.root)
 
     def reset_mastery_index(self):
         self.entry_mastery_index.delete(0, "end")
@@ -595,7 +595,7 @@ class BotGUI:
                     required_templates.append("select_action.png")
                 if not self.bot.mastery_grid_topleft or not self.bot.mastery_grid_bottomright:
                     self.log_message("錯誤: 尚未校準技能樹網格座標！請在「圖像校準」中設定。")
-                    messagebox.showwarning("警告", "請先完成技能樹「左上角」與「右下角」座標校準再啟動腳本！")
+                    messagebox.showwarning("警告", "請先完成技能樹「左上角」與「右下角」座標校準再啟動腳本！", parent=self.root)
                     return
                 
             for filename in required_templates:
@@ -610,7 +610,7 @@ class BotGUI:
                     missing.append(title)
             if missing:
                 self.log_message(f"錯誤: 缺少此模式所需的模板檔案 {missing}，請先完成擷取。")
-                messagebox.showwarning("警告", f"請先截圖設定當前模式所需的模板：{missing} 再啟動腳本！")
+                messagebox.showwarning("警告", f"請先截圖設定當前模式所需的模板：{missing} 再啟動腳本！", parent=self.root)
                 return
                 
             self.bot.start()
@@ -712,13 +712,13 @@ class BotGUI:
         """Toggles the topmost status of the selected window."""
         selected_title = self.combo_windows.get()
         if not selected_title:
-            messagebox.showwarning("警告", "請先選擇一個視窗！")
+            messagebox.showwarning("警告", "請先選擇一個視窗！", parent=self.root)
             self.is_topmost_var.set(False)
             return
             
         hwnd = self.windows_map.get(selected_title)
         if not hwnd or not win32gui.IsWindow(hwnd):
-            messagebox.showerror("錯誤", "找不到該視窗的有效控制代碼 (HWND)，請重新整理列表。")
+            messagebox.showerror("錯誤", "找不到該視窗的有效控制代碼 (HWND)，請重新整理列表。", parent=self.root)
             self.is_topmost_var.set(False)
             return
             
@@ -734,7 +734,7 @@ class BotGUI:
                 self.log_message(f"已取消視窗「{selected_title}」的置頂顯示。")
         except Exception as e:
             self.log_message(f"置頂控制失敗: {e}")
-            messagebox.showerror("錯誤", f"無法設定置頂狀態: {e}")
+            messagebox.showerror("錯誤", f"無法設定置頂狀態: {e}", parent=self.root)
             self.is_topmost_var.set(False)
 
 
@@ -855,7 +855,7 @@ class BotGUI:
         """Handles screenshot capturing and overlay for selection."""
         # Check if bot is running
         if self.bot.is_running:
-            messagebox.showwarning("提示", "請先停止腳本後再擷取模板。")
+            messagebox.showwarning("提示", "請先停止腳本後再擷取模板。", parent=self.root)
             return
             
         self.log_message(f"開始擷取模板 {filename}... 視窗即將隱藏...")
@@ -898,7 +898,7 @@ class BotGUI:
     def calibrate_grid_point(self, point_name):
         """Handles single coordinate selection for grid points."""
         if self.bot.is_running:
-            messagebox.showwarning("提示", "請先停止腳本後再進行校準。")
+            messagebox.showwarning("提示", "請先停止腳本後再進行校準。", parent=self.root)
             return
             
         self.log_message(f"開始校準技能樹{point_name}座標... 視窗即將隱藏...")
@@ -1017,7 +1017,7 @@ class BotGUI:
                 self.lbl_countdown.config(text="")
                 self.log_message("定時掛機時間已到，自動停止腳本！")
                 self.stop_bot()
-                messagebox.showinfo("定時停止", "設定的自動掛機時間已到，腳本已安全停止。")
+                messagebox.showinfo("定時停止", "設定的自動掛機時間已到，腳本已安全停止。", parent=self.root)
             else:
                 hrs = int(remaining // 3600)
                 mins = int((remaining % 3600) // 60)
