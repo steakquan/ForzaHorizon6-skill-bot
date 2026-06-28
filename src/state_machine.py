@@ -27,7 +27,7 @@ class ForzaBot:
         
         self.mode = "RACE_FARM"    # RACE_FARM, CAR_MASTERY
         self.state = "IDLE"        # Current state
-        self.is_running = False
+        self._is_running = False
         self.thread = None
         self.log_callback = print  # Can be replaced by GUI log function
         self.state_callback = None # Can be replaced by GUI state update function
@@ -44,6 +44,19 @@ class ForzaBot:
         
         # Initialize OCR engine manager
         self.ocr_manager = OcrEngineManager(log_func=self.log)
+
+    @property
+    def is_running(self):
+        curr = threading.current_thread()
+        if curr.name == "ForzaBotThread":
+            if curr == self.thread:
+                return self._is_running
+            return False
+        return self._is_running
+
+    @is_running.setter
+    def is_running(self, value):
+        self._is_running = value
 
     def load_bot_config(self):
         cfg = load_config(self.templates_dir)
@@ -132,7 +145,7 @@ class ForzaBot:
             return
             
         self.is_running = True
-        self.thread = threading.Thread(target=self._run_loop, daemon=True)
+        self.thread = threading.Thread(target=self._run_loop, name="ForzaBotThread", daemon=True)
         self.thread.start()
         self.log("腳本已在背景啟動...")
 
