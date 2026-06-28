@@ -443,12 +443,12 @@ class ForzaBot:
                                 
                         # 6-step optimal path (row, col)
                         unlock_path = [
-                            (3, 0),  # Step 1
-                            (2, 0),  # Step 2
-                            (2, 1),  # Step 3
-                            (1, 1),  # Step 4
-                            (1, 2),  # Step 5
-                            (0, 2)   # Step 6
+                            (3, 0),  # Step 1: 最左下
+                            (2, 0),  # Step 2: 左側第二個
+                            (1, 0),  # Step 3: 左側第三個
+                            (0, 0),  # Step 4: 最左上
+                            (0, 1),  # Step 5: 頂部第二個
+                            (0, 2)   # Step 6: 頂部第三個
                         ]
                         
                         for step_idx, (row, col) in enumerate(unlock_path):
