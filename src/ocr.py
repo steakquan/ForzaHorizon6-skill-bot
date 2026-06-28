@@ -47,7 +47,7 @@ class OcrEngineManager:
     def is_available(self):
         return HAS_WINSDK and len(self.ocr_engines) > 0
 
-    def find_text_by_ocr_sync(self, target_texts, selected_hwnd=None, game_window_title="Forza Horizon"):
+    def find_text_by_ocr_sync(self, target_texts, selected_hwnd=None, game_window_title="Forza Horizon", scale=True):
         """Synchronously runs OCR to find the given text list on the game screen.
         Returns (abs_x, abs_y, confidence) of the matched text center, or None.
         """
@@ -56,22 +56,25 @@ class OcrEngineManager:
         try:
             if isinstance(target_texts, str):
                 target_texts = [target_texts]
-            return asyncio.run(self._ocr_search_multi_async(target_texts, selected_hwnd, game_window_title))
+            return asyncio.run(self._ocr_search_multi_async(target_texts, selected_hwnd, game_window_title, scale))
         except Exception as e:
             self.log(f"OCR 辨識過程發生異常錯誤: {e}")
             return None
 
-    async def _ocr_search_multi_async(self, target_texts, selected_hwnd, game_window_title):
+    async def _ocr_search_multi_async(self, target_texts, selected_hwnd, game_window_title, scale=True):
         """Asynchronously grabs screen and runs Windows Media OCR using multiple engines to find any of target_texts."""
         if not self.ocr_engines:
             return None
             
         screenshot, offset = capture_game_screen(selected_hwnd, game_window_title)
         
-        # Scale the image by 2x for significantly better OCR accuracy of small texts
-        scale_factor = 2
-        new_size = (screenshot.size[0] * scale_factor, screenshot.size[1] * scale_factor)
-        screenshot_scaled = screenshot.resize(new_size, Image.Resampling.LANCZOS)
+        # Scale the image by 2x for significantly better OCR accuracy of small texts (optional)
+        scale_factor = 2 if scale else 1
+        if scale:
+            new_size = (screenshot.size[0] * scale_factor, screenshot.size[1] * scale_factor)
+            screenshot_scaled = screenshot.resize(new_size, Image.Resampling.BILINEAR)
+        else:
+            screenshot_scaled = screenshot
         
         # Convert PIL Image to bytes
         img_byte_arr = io.BytesIO()
@@ -169,7 +172,7 @@ class OcrEngineManager:
         # Scale the image by 2x for accuracy
         scale_factor = 2
         new_size = (screenshot.size[0] * scale_factor, screenshot.size[1] * scale_factor)
-        screenshot_scaled = screenshot.resize(new_size, Image.Resampling.LANCZOS)
+        screenshot_scaled = screenshot.resize(new_size, Image.Resampling.BILINEAR)
         
         img_byte_arr = io.BytesIO()
         screenshot_scaled.save(img_byte_arr, format='PNG')

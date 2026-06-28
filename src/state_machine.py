@@ -255,42 +255,46 @@ class ForzaBot:
                             time.sleep(self.check_interval)
                             
                     elif self.state == "MASTERY_DRIVE_PROMPT":
-                        # Detect "select_action" or "ride vehicle" dialog
-                        # We use OCR to locate "選擇動作" or "SELECT ACTION"
-                        has_ocr = self.ocr_manager.is_available()
-                        match_action = None
-                        if has_ocr:
-                            match_action = self.find_text_by_ocr_sync(["選擇動作", "选择动作", "SELECT ACTION"])
-                            
-                        if match_action:
-                            x_act, y_act, conf_act = match_action
-                            self.log(f"OCR 成功定位【選擇動作】標題 (置信度: {conf_act:.2f})")
-                            # Get the window rect and calculate the exact offset
-                            hwnd, rect = self.find_game_window()
-                            if rect:
-                                # Offset y by 6.2% of window height down to click the "drive car" button
-                                height = rect[3] - rect[1]
-                                offset_y = int(height * 0.062)
-                                x_drive = x_act
-                                y_drive = y_act + offset_y
-                                self.log(f"根據視窗比例計算「乘駕車輛」點擊位置：({x_drive}, {y_drive})")
-                                direct_input.smooth_move_mouse(x_drive, y_drive, duration=0.3)
-                                time.sleep(0.5)
-                                direct_input.mouse_click(x_drive, y_drive, click_duration=0.15, settle_delay=0.15)
-                            else:
-                                self.log("錯誤: 無法取得視窗大小，無法計算相對點擊點。")
+                        # Prioritize template matching for speed (~50ms)
+                        match_temp = self.find_template_on_screen("select_action.png")
+                        if match_temp:
+                            x_act, y_act, conf_act = match_temp
+                            self.log(f"比對到【選擇動作】標題模板 (置信度: {conf_act:.2f})")
+                            x_drive = x_act
+                            y_drive = y_act + 40
+                            self.log(f"點擊下方「乘駕車輛」位置：({x_drive}, {y_drive})")
+                            direct_input.smooth_move_mouse(x_drive, y_drive, duration=0.3)
+                            time.sleep(0.5)
+                            direct_input.mouse_click(x_drive, y_drive, click_duration=0.15, settle_delay=0.15)
                         else:
-                            # Fallback to template matching of select_action.png
-                            match_temp = self.find_template_on_screen("select_action.png")
-                            if match_temp:
-                                x_act, y_act, conf_act = match_temp
-                                self.log(f"比對到【選擇動作】標題模板 (置信度: {conf_act:.2f})")
-                                x_drive = x_act
-                                y_drive = y_act + 40
-                                self.log(f"點擊下方「乘駕車輛」位置：({x_drive}, {y_drive})")
-                                direct_input.smooth_move_mouse(x_drive, y_drive, duration=0.3)
-                                time.sleep(0.5)
-                                direct_input.mouse_click(x_drive, y_drive, click_duration=0.15, settle_delay=0.15)
+                            # Fallback to fast OCR (scale=False for title texts to bypass resizing time)
+                            has_ocr = self.ocr_manager.is_available()
+                            match_action = None
+                            if has_ocr:
+                                match_action = self.find_text_by_ocr_sync(
+                                    ["選擇動作", "选择动作", "SELECT ACTION"], 
+                                    self.selected_hwnd, 
+                                    self.game_window_title,
+                                    scale=False
+                                )
+                                
+                            if match_action:
+                                x_act, y_act, conf_act = match_action
+                                self.log(f"OCR 成功定位【選擇動作】標題 (置信度: {conf_act:.2f})")
+                                # Get the window rect and calculate the exact offset
+                                hwnd, rect = self.find_game_window()
+                                if rect:
+                                    # Offset y by 6.2% of window height down to click the "drive car" button
+                                    height = rect[3] - rect[1]
+                                    offset_y = int(height * 0.062)
+                                    x_drive = x_act
+                                    y_drive = y_act + offset_y
+                                    self.log(f"根據視窗比例計算「乘駕車輛」點擊位置：({x_drive}, {y_drive})")
+                                    direct_input.smooth_move_mouse(x_drive, y_drive, duration=0.3)
+                                    time.sleep(0.5)
+                                    direct_input.mouse_click(x_drive, y_drive, click_duration=0.15, settle_delay=0.15)
+                                else:
+                                    self.log("錯誤: 無法取得視窗大小，無法計算相對點擊點。")
                             else:
                                 time.sleep(self.check_interval)
                                 continue
