@@ -147,3 +147,106 @@ class OcrEngineManager:
                 self.log(f"OCR 引擎 {lang_tag} 辨識出錯: {e}")
                 
         return None
+
+    def detect_available_points_sync(self, selected_hwnd=None, game_window_title="Forza Horizon"):
+        """Detects available mastery points from the game screen.
+        Returns the number of points as an int, or None if detection failed.
+        """
+        if not self.is_available():
+            return None
+        try:
+            return asyncio.run(self._detect_available_points_async(selected_hwnd, game_window_title))
+        except Exception as e:
+            self.log(f"偵測可用點數發生異常: {e}")
+            return None
+
+    async def _detect_available_points_async(self, selected_hwnd, game_window_title):
+        if not self.ocr_engines:
+            return None
+            
+        screenshot, offset = capture_game_screen(selected_hwnd, game_window_title)
+        
+        # Scale the image by 2x for accuracy
+        scale_factor = 2
+        new_size = (screenshot.size[0] * scale_factor, screenshot.size[1] * scale_factor)
+        screenshot_scaled = screenshot.resize(new_size, Image.Resampling.LANCZOS)
+        
+        img_byte_arr = io.BytesIO()
+        screenshot_scaled.save(img_byte_arr, format='PNG')
+        img_bytes = img_byte_arr.getvalue()
+        
+        stream = InMemoryRandomAccessStream()
+        writer = DataWriter(stream.get_output_stream_at(0))
+        writer.write_bytes(img_bytes)
+        await writer.store_async()
+        await writer.flush_async()
+        
+        decoder = await BitmapDecoder.create_async(stream)
+        software_bitmap = await decoder.get_software_bitmap_async()
+        
+        target_labels = ["可用的點數", "可用的点数", "availablepoints"]
+        
+        for lang_tag, engine in self.ocr_engines:
+            try:
+                result = await engine.recognize_async(software_bitmap)
+                
+                label_line = None
+                label_y_center = None
+                label_x_right = None
+                
+                for line in result.lines:
+                    line_text_clean = "".join(line.text.lower().split())
+                    matched = False
+                    for target in target_labels:
+                        if target in line_text_clean:
+                            matched = True
+                            break
+                            
+                    if matched:
+                        label_line = line
+                        rects = [w.bounding_rect for w in line.words]
+                        if rects:
+                            top = min(r.y for r in rects) / scale_factor
+                            bottom = max(r.y + r.height for r in rects) / scale_factor
+                            right = max(r.x + r.width for r in rects) / scale_factor
+                            label_y_center = top + (bottom - top) / 2
+                            label_x_right = right
+                        break
+                
+                if label_line is not None:
+                    import re
+                    digits = re.findall(r'\d+', label_line.text)
+                    if digits:
+                        points = int(digits[0])
+                        self.log(f"[OCR] 在同一行偵測到可用點數: {points}")
+                        return points
+                        
+                    if label_y_center is not None and label_x_right is not None:
+                        best_number = None
+                        min_dist = float('inf')
+                        
+                        for line in result.lines:
+                            if line == label_line:
+                                continue
+                            line_digits = re.findall(r'\d+', line.text)
+                            if line_digits:
+                                rects = [w.bounding_rect for w in line.words]
+                                if rects:
+                                    top = min(r.y for r in rects) / scale_factor
+                                    bottom = max(r.y + r.height for r in rects) / scale_factor
+                                    left = min(r.x for r in rects) / scale_factor
+                                    y_center = top + (bottom - top) / 2
+                                    
+                                    if abs(y_center - label_y_center) < 30 and left >= label_x_right - 20:
+                                        dist = left - label_x_right
+                                        if dist < min_dist:
+                                            min_dist = dist
+                                            best_number = int(line_digits[0])
+                                            
+                        if best_number is not None:
+                            self.log(f"[OCR] 在鄰近區域偵測到可用點數: {best_number}")
+                            return best_number
+            except Exception as e:
+                self.log(f"OCR 偵測點數時在引擎 {lang_tag} 出錯: {e}")
+                
+        return None

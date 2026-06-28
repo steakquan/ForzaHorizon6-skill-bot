@@ -414,7 +414,33 @@ class ForzaBot:
                             time.sleep(self.check_interval)
                             
                     elif self.state == "MASTERY_UNLOCK_SKILLS":
-                        self.log("已進入車輛熟練度，開始依序解鎖 4x4 技能樹...")
+                        self.log("已進入車輛熟練度，偵測可用技能點數...")
+                        
+                        available_points = None
+                        if self.ocr_manager.is_available():
+                            for attempt in range(3):
+                                if not self.is_running:
+                                    break
+                                pts = self.ocr_manager.detect_available_points_sync(
+                                    self.selected_hwnd, 
+                                    self.game_window_title
+                                )
+                                if pts is not None:
+                                    available_points = pts
+                                    break
+                                self.log(f"未能辨識到可用點數，將於 1 秒後重試第 {attempt + 1}/3 次...")
+                                time.sleep(1.0)
+                                
+                        if available_points is not None:
+                            self.log(f"偵測到可用技能點數：{available_points}")
+                            if available_points < 39:
+                                self.log(f"錯誤：可用點數不足！剩餘 {available_points} 點，不足點滿一台車所需的 39 點。安全停止腳本。")
+                                self.stop()
+                                break
+                        else:
+                            self.log("警告：無法辨識可用技能點數，預設繼續解鎖...")
+                            
+                        self.log("開始依序解鎖 4x4 技能樹...")
                         
                         # Get game window position to convert relative coordinates to absolute screen coordinates
                         hwnd, rect = self.find_game_window()

@@ -446,6 +446,10 @@ class BotGUI:
                     self.log_text.insert(tk.END, part, "info")
             self.log_text.insert(tk.END, "\n")
             self.log_text.see(tk.END)
+            
+            if "可用點數不足" in message:
+                messagebox.showwarning("可用點數不足", message, parent=self.root)
+                
         self.root.after(0, action)
 
     def on_state_change(self, state):
