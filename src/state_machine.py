@@ -403,6 +403,15 @@ class ForzaBot:
                     elif self.state == "MASTERY_UNLOCK_SKILLS":
                         self.log("已進入車輛熟練度，開始依序解鎖 4x4 技能樹...")
                         
+                        # Get game window position to convert relative coordinates to absolute screen coordinates
+                        hwnd, rect = self.find_game_window()
+                        offset_x = 0
+                        offset_y = 0
+                        if rect:
+                            left, top, right, bottom = rect
+                            offset_x = max(0, left)
+                            offset_y = max(0, top)
+                        
                         # 6-step path coordinates based on custom grid top-left and bottom-right calibration
                         x0, y0 = self.mastery_grid_topleft
                         x3, y3 = self.mastery_grid_bottomright
@@ -414,7 +423,10 @@ class ForzaBot:
                         grid_points = {}
                         for r in range(4):
                             for c in range(4):
-                                grid_points[(r, c)] = (int(x0 + c * dx), int(y0 + r * dy))
+                                grid_points[(r, c)] = (
+                                    int(offset_x + x0 + c * dx), 
+                                    int(offset_y + y0 + r * dy)
+                                )
                                 
                         # 6-step optimal path (row, col)
                         unlock_path = [
