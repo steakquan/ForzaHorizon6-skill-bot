@@ -231,8 +231,11 @@ class ForzaBot:
                             direct_input.mouse_click(x_car, y_car, click_duration=0.15, settle_delay=0.15)
                             time.sleep(1.0)
                             
-                            self.log("發送 'Enter' 鍵代替第二次點選...")
-                            direct_input.press_and_release(direct_input.KEY_ENTER, duration=0.5)
+                            if self.mastery_car_index > 0:
+                                self.log("發送 'Enter' 鍵代替第二次點選...")
+                                direct_input.press_and_release(direct_input.KEY_ENTER, duration=0.5)
+                            else:
+                                self.log("第一台車輛無須按下 'Enter' 鍵，直接跳過第二次點選...")
                             self.update_state("MASTERY_DRIVE_PROMPT")
                             time.sleep(2.5)
                         else:
