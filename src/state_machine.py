@@ -279,25 +279,28 @@ class ForzaBot:
                                 time.sleep(self.check_interval)
                                 continue
                                 
-                        # Adaptive check after clicking "Drive"
-                        time.sleep(1.0)
+                        # Wait for transition animation
+                        self.log("選擇乘駕車輛，等待約 9 秒過場與載入動畫...")
+                        time.sleep(9.0)
                         
-                        # Check if we are still on the upgrades or select car screen (no transition animation played)
+                        # Adaptive check to ensure screen has loaded
+                        self.log("正在檢查畫面載入狀態...")
+                        for _ in range(10): # Max wait 5 seconds (10 * 0.5s)
+                            if not self.is_running:
+                                break
+                            if self.find_template_on_screen("revuelto.png") or self.find_template_on_screen("upgrades_tuning.png"):
+                                break
+                            time.sleep(0.5)
+                            
                         if self.find_template_on_screen("upgrades_tuning.png"):
-                            self.log("偵測到【升級套件與調校】已在畫面上，跳過過場等待與 Esc 發送。")
-                            self.update_state("MASTERY_ENTER_UPGRADES")
-                        elif self.find_template_on_screen("revuelto.png"):
-                            self.log("仍處於車輛選擇列表（未觸發換車動畫），發送 'Esc' 返回選單...")
-                            direct_input.press_and_release(direct_input.KEY_ESC, duration=0.5)
-                            self.update_state("MASTERY_ENTER_UPGRADES")
-                            time.sleep(1.5)
+                            self.log("已進入車庫首頁。")
                         else:
-                            self.log("已觸發換車過場動畫，等待 9 秒過場動畫...")
-                            time.sleep(9.0)
-                            self.log("過場動畫結束，發送 'Esc' 鍵進入選單...")
+                            self.log("發送 'Esc' 返回車庫首頁...")
                             direct_input.press_and_release(direct_input.KEY_ESC, duration=0.5)
-                            self.update_state("MASTERY_ENTER_UPGRADES")
                             time.sleep(1.5)
+                            
+                        self.update_state("MASTERY_ENTER_UPGRADES")
+                        time.sleep(1.0)
                             
                     elif self.state == "MASTERY_ENTER_UPGRADES":
                         match = self.find_template_on_screen("upgrades_tuning.png")
