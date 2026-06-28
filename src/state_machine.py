@@ -239,65 +239,14 @@ class ForzaBot:
                             time.sleep(self.check_interval)
                             
                     elif self.state == "MASTERY_DRIVE_PROMPT":
-                        # Detect "select_action" or "ride vehicle" dialog
-                        # We use OCR to locate "選擇動作" or "SELECT ACTION"
-                        has_ocr = self.ocr_manager.is_available()
-                        match_action = None
-                        if has_ocr:
-                            match_action = self.find_text_by_ocr_sync(["選擇動作", "选择动作", "SELECT ACTION"])
-                            
-                        if match_action:
-                            x_act, y_act, conf_act = match_action
-                            self.log(f"OCR 成功定位【選擇動作】標題 (置信度: {conf_act:.2f})")
-                            # Get the window rect and calculate the exact offset
-                            hwnd, rect = self.find_game_window()
-                            if rect:
-                                # Offset y by 6.2% of window height down to click the "drive car" button
-                                height = rect[3] - rect[1]
-                                offset_y = int(height * 0.062)
-                                x_drive = x_act
-                                y_drive = y_act + offset_y
-                                self.log(f"根據視窗比例計算「乘駕車輛」點擊位置：({x_drive}, {y_drive})")
-                                direct_input.smooth_move_mouse(x_drive, y_drive, duration=0.3)
-                                time.sleep(0.5)
-                                direct_input.mouse_click(x_drive, y_drive, click_duration=0.15, settle_delay=0.15)
-                            else:
-                                self.log("錯誤: 無法取得視窗大小，無法計算相對點擊點。")
-                        else:
-                            # Fallback to template matching of select_action.png
-                            match_temp = self.find_template_on_screen("select_action.png")
-                            if match_temp:
-                                x_act, y_act, conf_act = match_temp
-                                self.log(f"比對到【選擇動作】標題模板 (置信度: {conf_act:.2f})")
-                                x_drive = x_act
-                                y_drive = y_act + 40
-                                self.log(f"點擊下方「乘駕車輛」位置：({x_drive}, {y_drive})")
-                                direct_input.smooth_move_mouse(x_drive, y_drive, duration=0.3)
-                                time.sleep(0.5)
-                                direct_input.mouse_click(x_drive, y_drive, click_duration=0.15, settle_delay=0.15)
-                            else:
-                                time.sleep(self.check_interval)
-                                continue
-                                
-                        # Adaptive check after clicking "Drive"
+                        self.log("處於乘車選擇動作提示狀態，直接發送 'Esc' 關閉提示框...")
+                        direct_input.press_and_release(direct_input.KEY_ESC, duration=0.5)
                         time.sleep(1.0)
                         
-                        # Check if we are still on the upgrades or select car screen (no transition animation played)
-                        if self.find_template_on_screen("upgrades_tuning.png"):
-                            self.log("偵測到【升級套件與調校】已在畫面上，跳過過場等待與 Esc 發送。")
-                            self.update_state("MASTERY_ENTER_UPGRADES")
-                        elif self.find_template_on_screen("revuelto.png"):
-                            self.log("仍處於車輛選擇列表（未觸發換車動畫），發送 'Esc' 返回選單...")
-                            direct_input.press_and_release(direct_input.KEY_ESC, duration=0.5)
-                            self.update_state("MASTERY_ENTER_UPGRADES")
-                            time.sleep(1.5)
-                        else:
-                            self.log("已觸發換車過場動畫，等待 9 秒過場動畫...")
-                            time.sleep(9.0)
-                            self.log("過場動畫結束，發送 'Esc' 鍵進入選單...")
-                            direct_input.press_and_release(direct_input.KEY_ESC, duration=0.5)
-                            self.update_state("MASTERY_ENTER_UPGRADES")
-                            time.sleep(1.5)
+                        self.log("發送 'Esc' 從車輛列表返回車庫大廳首頁...")
+                        direct_input.press_and_release(direct_input.KEY_ESC, duration=0.5)
+                        self.update_state("MASTERY_ENTER_UPGRADES")
+                        time.sleep(1.5)
                             
                     elif self.state == "MASTERY_ENTER_UPGRADES":
                         match = self.find_template_on_screen("upgrades_tuning.png")
