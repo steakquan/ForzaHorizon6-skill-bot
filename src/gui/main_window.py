@@ -634,7 +634,18 @@ class BotGUI:
             titles.append(title)
         self.combo_windows["values"] = titles
         if titles:
-            self.combo_windows.current(0)
+            # Try to auto-select window containing "Forza Horizon"
+            forza_index = -1
+            for idx, title in enumerate(titles):
+                if "forza horizon" in title.lower():
+                    forza_index = idx
+                    break
+            
+            if forza_index != -1:
+                self.combo_windows.current(forza_index)
+                self.log_message(f"已自動尋找並選取遊戲視窗：【{titles[forza_index]}】")
+            else:
+                self.combo_windows.current(0)
             self.on_window_selected(None)
 
     def toggle_topmost(self):
