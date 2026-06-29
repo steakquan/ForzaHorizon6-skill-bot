@@ -487,9 +487,9 @@ class ForzaBot:
                                 
                             abs_x, abs_y = grid_points[(row, col)]
                             
-                            self.log(f"滑鼠先移至技能點 [{step_idx + 1}/6]：格點 (row={row}, col={col}) -> 螢幕座標 ({abs_x}, {abs_y})，等待 0.5 秒以觸發懸停狀態...")
+                            self.log(f"滑鼠先移至技能點 [{step_idx + 1}/6]：格點 (row={row}, col={col}) -> 螢幕座標 ({abs_x}, {abs_y})，等待 0.25 秒以觸發懸停狀態...")
                             direct_input.smooth_move_mouse(abs_x, abs_y, duration=0.3)
-                            time.sleep(0.5)
+                            time.sleep(0.25)
                             
                             self.log("模擬滑鼠點擊解鎖技能點...")
                             direct_input.mouse_click(abs_x, abs_y, click_duration=0.15, settle_delay=0.1)
